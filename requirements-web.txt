@@ -1,0 +1,5 @@
+# 웹 연결용 추가 의존성입니다. 기존 CUDA용 torch/torchvision을 설치·교체하지 않습니다.
+fastapi==0.162.0
+uvicorn==0.54.0
+python-multipart==0.0.33
+Pillow==12.3.0

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#245c4c">
+  <title>사진 정리함 · Photo Auto Sorter</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">사진 정리함<span>PHOTO AUTO SORTER</span></a><span class="tag">원본 그대로, 폴더별로</span></header>
+  <main>
+    <div class="intro">
+      <p class="eyebrow">사진은 남기고, 정리는 가볍게</p>
+      <h1>쌓인 사진을<br>세 폴더로 정리하세요.</h1>
+      <p class="lead">사진을 올리면 인물 · 음식 · 풍경 및 기타로 분류해요.<br>정리된 원본과 결과 보고서를 ZIP으로 한 번에 받으세요.</p>
+    </div>
+    <ol class="steps" aria-label="사용 순서"><li><b>01</b> 사진 선택</li><li><b>02</b> 자동 분류</li><li><b>03</b> ZIP 다운로드</li></ol>
+    <section class="workspace" aria-labelledby="upload-title">
+      <div class="section-head"><h2 id="upload-title">정리할 사진</h2><span id="summary">0장 · 0 B</span></div>
+      <div id="dropzone" class="dropzone">
+        <span class="upload-icon" aria-hidden="true">↑</span>
+        <h3>사진을 여기에 놓아주세요</h3>
+        <p>또는 기기에서 여러 장을 선택하세요.</p>
+        <label class="choose" for="files">사진 선택</label>
+        <input id="files" type="file" accept=".jpg,.jpeg,.jfif,.png,.webp" multiple disabled>
+      </div>
+      <p id="limits" class="hint">업로드 제한을 확인하고 있습니다.</p>
+      <p id="selection-message" class="notice" role="status" hidden></p>
+      <div id="selection-tools" class="selection-tools" hidden><span>선택한 사진을 확인하세요.</span><button id="clear" class="text-button" type="button">전체 초기화</button></div>
+      <ul id="previews" class="previews" aria-label="선택한 사진"></ul>
+      <div class="action-row"><p id="model-status" role="status">분류 기능 상태 확인 중…</p><button id="start" class="primary" type="button" disabled>분류 시작 <span aria-hidden="true">→</span></button></div>
+      <div id="process" class="process" role="status" aria-live="polite" hidden><span class="spinner" aria-hidden="true"></span><span id="process-text"></span></div>
+      <p id="error" class="error" role="alert" hidden></p>
+    </section>
+    <section id="result" class="result" aria-labelledby="result-title" hidden>
+      <div class="section-head"><div><p class="eyebrow">정리 완료</p><h2 id="result-title">사진이 제자리를 찾았어요.</h2></div><span aria-hidden="true" class="check">✓</span></div>
+      <dl class="counts"><div><dt>인물 <small>person</small></dt><dd id="count-person">0</dd></div><div><dt>음식 <small>food</small></dt><dd id="count-food">0</dd></div><div><dt>풍경 및 기타 <small>landscape</small></dt><dd id="count-landscape">0</dd></div><div><dt>실패 <small>보고서에서 확인</small></dt><dd id="count-failed">0</dd></div></dl>
+      <p id="result-description">ZIP에는 세 폴더와 classification_report.csv가 들어 있어요.</p>
+      <div class="download-row"><a id="download" class="primary" download>결과 ZIP 다운로드 ↓</a><p id="expiry" class="hint"></p></div>
+    </section>
+    <section class="guide" aria-label="분류 및 보관 안내"><div><h3>어떻게 나누나요?</h3><p>사람이 주요 대상이면 인물, 음식이 주요 대상이면 음식으로 분류해요. 나머지는 풍경 및 기타 폴더에 담아요.</p></div><div><h3>원본은 그대로예요.</h3><p>사진을 다시 저장하거나 압축하지 않아요. 읽지 못한 사진은 실패 이유를 보고서에 남겨요.</p></div><div><h3>잠시만 보관해요.</h3><p id="retention">업로드한 사진과 결과는 임시로만 보관해요.</p></div></section>
+  </main>
+  <footer>사진 정리함<span>내 사진을 정리하는 작은 도구</span></footer>
+</body>
+</html>

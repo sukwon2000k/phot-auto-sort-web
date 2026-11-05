@@ -1,0 +1,4 @@
+# 자동 검증을 실행할 때만 필요합니다.
+-r requirements-web.txt
+httpx==0.28.1
+pytest==9.2.0
