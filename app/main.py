@@ -18,6 +18,8 @@ from starlette.concurrency import run_in_threadpool
 from .config import Settings
 from .services.web_jobs import EXTENSIONS, InputLimitError, ProcessLock, process_job
 from .services.uploads import receive_upload
+from .services.chunks import assemble, register_chunk_routes
+from .services.review import read_items, register_review_routes
 
 logger = logging.getLogger("photo_sorter")
 FRONTEND_DIST = Path(__file__).resolve().parents[1] / "frontend" / "dist"
@@ -40,6 +42,11 @@ class Job:
         "phase": "preparing", "processed": 0, "total": None, "percent": None,
     })
 
+    session: object = None
+    result_dir: Path | None = None
+    items: list = field(default_factory=list)
+    exports: dict = field(default_factory=dict)
+
     def public(self):
         """사용자에게 필요한 상태만 반환하고 서버 파일 경로는 공개하지 않습니다."""
         return {
@@ -54,10 +61,10 @@ class Job:
 class DownloadResponse(FileResponse):
     """응답이 끝나거나 연결이 끊길 때까지 정리 대상에서 ZIP을 보호합니다."""
 
-    def __init__(self, job: Job):
+    def __init__(self, job: Job, path=None, filename="sorted_photos.zip", media_type="application/zip"):
         """다운로드 작업을 받아 사용 중 개수를 증가시키고 파일 응답을 만듭니다."""
         super().__init__(
-            job.zip_path, filename="sorted_photos.zip", media_type="application/zip",
+            path or job.zip_path, filename=filename, media_type=media_type,
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
         self.job = job
@@ -99,6 +106,8 @@ def create_app(settings: Settings | None = None, predictor_loader: Callable = lo
         app.state.jobs = {}
         app.state.busy = False
         app.state.runner = None
+        app.state.export_tasks = set()
+        app.state.thumbnail_slots = asyncio.Semaphore(3)
         app.state.predictor = None
         stop = asyncio.Event()
         cleaner = None
@@ -119,6 +128,8 @@ def create_app(settings: Settings | None = None, predictor_loader: Callable = lo
                 await cleaner
             if app.state.runner:
                 await app.state.runner
+            if app.state.export_tasks:
+                await asyncio.gather(*app.state.export_tasks, return_exceptions=True)
             app.state.predictor = None
             lock.release()
 
@@ -159,6 +170,7 @@ def create_app(settings: Settings | None = None, predictor_loader: Callable = lo
                 "upload_timeout_seconds": settings.upload_timeout,
                 "retention_seconds": settings.retention_seconds,
                 "max_pixels": settings.max_pixels,
+                "chunk_bytes": settings.chunk_bytes,
             },
         }
 
@@ -214,6 +226,8 @@ def create_app(settings: Settings | None = None, predictor_loader: Callable = lo
             raise HTTPException(409, "아직 다운로드할 결과가 없습니다.")
         return DownloadResponse(job)
 
+    register_chunk_routes(app, settings, Job, find_job, run_job)
+    register_review_routes(app, find_job, DownloadResponse)
     return app
 
 
@@ -226,7 +240,7 @@ async def run_job(app: FastAPI, job: Job, entries: list):
         if job.status != "processing":
             return
         percent = None
-        if phase in {"classifying", "zipping"} and total:
+        if total is not None and total > 0:
             percent = 100 if processed >= total else min(99.9, round(processed * 100 / total, 1))
         job.progress = {"phase": phase, "processed": processed, "total": total, "percent": percent}
 
@@ -235,8 +249,13 @@ async def run_job(app: FastAPI, job: Job, entries: list):
         loop.call_soon_threadsafe(apply_progress, phase, processed, total)
 
     try:
+        if entries is None:
+            entries = await run_in_threadpool(assemble, job, job.session, report_progress)
+            job.session = None
         job.zip_path, job.counts, job.failed_count = await run_in_threadpool(
             process_job, job.directory, entries, app.state.predictor, app.state.settings, report_progress)
+        job.result_dir = job.directory / "review"
+        job.items = await run_in_threadpool(read_items, job.result_dir)
         job.status = "completed"
         total = sum(job.counts.values()) + job.failed_count
         job.progress = {"phase": "completed", "processed": total, "total": total, "percent": 100}
@@ -257,6 +276,8 @@ async def cleanup_once(app: FastAPI):
         if job.expires_at is not None and now >= job.expires_at and job.downloads == 0:
             # 디렉터리 제거 동안에도 다른 요청에서 다시 다운로드하지 못하게 먼저 등록을 해제합니다.
             del app.state.jobs[job_id]
+            if job.status == "uploading":
+                app.state.busy = False
             try:
                 await run_in_threadpool(shutil.rmtree, job.directory)
             except FileNotFoundError:

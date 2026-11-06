@@ -43,6 +43,7 @@ export default function App({ client = apiClient }) {
   const [error, setError] = useState("");
   const [phase, setPhase] = useState("idle");
   const [phaseText, setPhaseText] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [job, setJob] = useState(() => {
     try {
@@ -52,6 +53,7 @@ export default function App({ client = apiClient }) {
   });
   const [clock, setClock] = useState(Date.now());
   const inputRef = useRef(null);
+  const folderInputRef = useRef(null);
   const submission = useRef(null);
   const busy = phase === "uploading" || Boolean(job && !TERMINAL.has(job.status));
   const summary = selectionSummary(files);
@@ -147,21 +149,24 @@ export default function App({ client = apiClient }) {
 
   /** 업로드를 접수하고 작업 ID를 저장합니다. 모델의 모의 결과는 만들지 않습니다. */
   async function start() {
-    if (busy || !server?.model_ready || server.busy || !files.length) return;
+    if (busy || !server?.model_ready || (server.busy && !client.canResume?.()) || !files.length) return;
     setError("");
     setJob(null);
     try { sessionStorage.removeItem(storageKey); } catch { /* 임시 상태 저장이 없어도 사용할 수 있습니다. */ }
     navigate("/processing");
     setPhase("uploading");
+    setUploadProgress({ phase: "preparing", processed: 0, total: files.length, percent: 0 });
     setPhaseText("사진·ZIP을 업로드하고 있어요.");
     const controller = new AbortController();
     submission.current = controller;
     try {
       const result = await client.submit(files.map((item) => item.file), {
         signal: controller.signal, timeoutSeconds: server.limits.upload_timeout_seconds,
+        onProgress: (value) => { if (!controller.signal.aborted) setUploadProgress(value); },
         onPhase: (text) => { if (!controller.signal.aborted) setPhaseText(text); },
       });
       if (controller.signal.aborted) return;
+      setUploadProgress(null);
       setJob(result);
       setPhase("processing");
       setPhaseText("업로드 완료 · 분류 작업 상태를 확인하고 있어요.");
@@ -177,10 +182,10 @@ export default function App({ client = apiClient }) {
 
   const modelMessage = !server ? "서버 연결을 확인하고 있어요." :
     !server.model_ready ? server.message :
-    server.busy && !busy ? "다른 사진을 정리하고 있어요. 잠시 후 다시 시도해 주세요." :
+    server.busy && !busy && !client.canResume?.() ? "다른 사진을 정리하고 있어요. 잠시 후 다시 시도해 주세요." :
     "사진이나 ZIP을 선택하면 분류를 시작할 수 있어요.";
 
-  return <AppShell route={route} navigate={navigate} server={server} files={files} summary={summary}
+  return <AppShell client={client} uploadProgress={uploadProgress} folderInputRef={folderInputRef} canResume={Boolean(client.canResume?.())} route={route} navigate={navigate} server={server} files={files} summary={summary}
     visible={visible} currentPage={currentPage} maxPage={maxPage} setPage={setPage}
     busy={busy} phase={phase} phaseText={phaseText} job={job} notice={notice} error={error}
     dragging={dragging} setDragging={setDragging} inputRef={inputRef} addFiles={addFiles}

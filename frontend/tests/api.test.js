@@ -22,14 +22,30 @@ let requests = [];
 afterEach(() => { requests = []; vi.unstubAllGlobals(); });
 
 describe("로컬·AWS API 어댑터", () => {
-  it("local은 기존 multipart API로 보낸다", async () => {
+  it("local은 조각 업로드 후 분류 작업을 접수한다", async () => {
     vi.stubGlobal("XMLHttpRequest", XhrStub);
-    const phase = vi.fn();
-    const result = await createApi().submit([new File(["x"], "x.zip")], { onPhase: phase });
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: "upload1", chunk_bytes: 2 }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: "local1", status: "processing" }) }));
+    const progress = vi.fn();
+    const result = await createApi().submit([new File(["abcde"], "x.zip")], { onProgress: progress });
     expect(result.id).toBe("local1");
-    expect(requests[0].url).toBe("/api/jobs");
-    expect(requests[0].body instanceof FormData).toBe(true);
-    expect(phase).toHaveBeenCalled();
+    expect(requests.map(x => x.url)).toEqual(["/api/uploads/upload1/0/0", "/api/uploads/upload1/0/1", "/api/uploads/upload1/0/2"]);
+    expect(requests.map(x => x.body.size)).toEqual([2, 2, 1]);
+    expect(progress.mock.calls.at(-1)[0].percent).toBe(100);
+  });
+
+  it("가상 3GB 파일도 원본 전체를 읽지 않고 100MB 미만 요청으로 보낸다", async () => {
+    vi.stubGlobal("XMLHttpRequest", XhrStub);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: "big", chunk_bytes: 50*1024**2 }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ id: "big", status: "processing" }) }));
+    // 3GB 메모리를 할당하지 않고 File.slice의 구간과 전송 크기를 검증합니다.
+    const file = { name: "3gb.zip", size: 3*1024**3, lastModified: 1, slice: (start,end) => ({ size:end-start }) };
+    await createApi().submit([file]);
+    expect(requests.length).toBe(62);
+    expect(requests.every(x => x.body.size < 100000000)).toBe(true);
+    expect(requests.reduce((sum,x) => sum+x.body.size,0)).toBe(file.size);
   });
 
   it("cloud는 세션 생성→S3 PUT→작업 접수 순서로 호출한다", async () => {

@@ -123,7 +123,7 @@ describe("React 사진 정리 흐름", () => {
       id: "job1", status: "completed", counts: { person: 1 }, expires_at: 1,
       download_url: "/api/jobs/job1/download",
     }) })} />);
-    const link = await screen.findByText("결과 ZIP 다운로드 ↓");
+    const link = await screen.findByLabelText("결과 ZIP 다운로드");
     await waitFor(() => expect(link.hasAttribute("href")).toBe(false));
     expect(screen.getByText(/보관 기간이 끝났어요/)).toBeTruthy();
   });

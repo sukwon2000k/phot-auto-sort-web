@@ -39,15 +39,35 @@ def inspect_zip_metadata(path: Path, max_entries: int) -> None:
                 break
     if record[1] or record[2] or record[3] != record[4]:
         raise BadZipFile("분할 ZIP은 지원하지 않습니다.")
-    if record[4] == 65535 or record[5] == 0xFFFFFFFF or record[6] == 0xFFFFFFFF:
-        raise BadZipFile("ZIP64 입력은 지원하지 않습니다. 일반 ZIP으로 나누어 올려 주세요.")
-    if record[4] > max_entries:
+    count, directory_size = record[4], record[5]
+    if count == 65535 or directory_size == 0xFFFFFFFF or record[6] == 0xFFFFFFFF:
+        # 4GB 이상의 일반 ZIP64도 읽되 다중 볼륨과 과도한 목록은 거부합니다.
+        absolute_end = path.stat().st_size - len(tail) + position
+        if absolute_end < 20:
+            raise BadZipFile("ZIP64 위치 정보가 없습니다.")
+        with path.open("rb") as source:
+            source.seek(absolute_end - 20)
+            locator = source.read(20)
+            if len(locator) != 20 or locator[:4] != b"PK\x06\x07":
+                raise BadZipFile("ZIP64 위치 정보를 읽을 수 없습니다.")
+            _, disk, offset, disks = struct.unpack("<4sIQI", locator)
+            if disk or disks != 1:
+                raise BadZipFile("다중 볼륨 ZIP은 지원하지 않습니다.")
+            source.seek(offset)
+            header = source.read(56)
+            if len(header) != 56 or header[:4] != b"PK\x06\x06":
+                raise BadZipFile("ZIP64 헤더가 잘못됐습니다.")
+            values = struct.unpack("<4sQ2H2I4Q", header)
+            if values[4] or values[5] or values[6] != values[7]:
+                raise BadZipFile("다중 볼륨 ZIP은 지원하지 않습니다.")
+            count, directory_size = values[7], values[8]
+    if count > max_entries:
         raise InputLimitError(f"ZIP 내부 항목 수가 제한({max_entries:,}개)을 넘었습니다.")
-    if record[5] > 32 * 1024**2:
+    if directory_size > 32 * 1024**2:
         raise InputLimitError("ZIP 파일 목록 정보가 너무 큽니다. 여러 ZIP으로 나누어 주세요.")
 
 
-def expand_uploads(job_dir: Path, uploads: list, settings):
+def expand_uploads(job_dir: Path, uploads: list, settings, on_progress=None):
     """ZIP과 개별 사진을 검증용 입력 목록으로 바꾸고 파일별 실패 기록을 함께 반환합니다."""
     entries = []
     failures = []
@@ -64,6 +84,21 @@ def expand_uploads(job_dir: Path, uploads: list, settings):
         if image_count > settings.max_files:
             raise InputLimitError(f"사진이 최대 {settings.max_files:,}장을 넘었습니다. 나누어 올려 주세요.")
 
+    # 메타데이터로 실제로 꺼낼 사진의 바이트 합계를 계산합니다.
+    expanded_total = 0
+    for path, _ in uploads:
+        if path.suffix.lower() == ".zip":
+            try:
+                inspect_zip_metadata(path, settings.max_archive_entries)
+                with ZipFile(path) as archive:
+                    expanded_total += sum(m.file_size for m in archive.infolist()
+                                          if Path(m.filename).suffix.lower() in EXTENSIONS)
+            except (BadZipFile, OSError):
+                pass
+        else:
+            expanded_total += path.stat().st_size
+    if on_progress:
+        on_progress("extracting", 0, expanded_total)
     for archive_index, (path, name) in enumerate(uploads):
         if path.suffix.lower() != ".zip":
             count_image()
@@ -71,6 +106,8 @@ def expand_uploads(job_dir: Path, uploads: list, settings):
             if total_bytes > settings.max_expanded_bytes:
                 raise InputLimitError("압축 해제 후 전체 사진 용량 제한을 넘었습니다.")
             entries.append((path, name))
+            if on_progress:
+                on_progress("extracting", total_bytes, expanded_total)
             continue
 
         try:
@@ -117,6 +154,8 @@ def expand_uploads(job_dir: Path, uploads: list, settings):
                                 if extracted > settings.max_file_bytes or total_bytes > settings.max_expanded_bytes:
                                     raise InputLimitError("압축 해제 중 실제 용량 제한을 넘었습니다.")
                                 output.write(chunk)
+                                if on_progress:
+                                    on_progress("extracting", total_bytes, expanded_total)
                     except InputLimitError:
                         raise
                     except (BadZipFile, RuntimeError, NotImplementedError, EOFError, zlib.error, lzma.LZMAError):
@@ -171,12 +210,12 @@ def process_job(job_dir: Path, entries: list[tuple[Path, str]], predictor, setti
     """업로드 파일을 검증한 뒤 기존 sorter로 분류합니다. 결과 경로·개수를 반환합니다."""
     if on_progress:
         on_progress("extracting", 0, None)
-    entries, failures = expand_uploads(job_dir, entries, settings)
+    entries, failures = expand_uploads(job_dir, entries, settings, on_progress)
     if on_progress:
         on_progress("validating", 0, len(entries) + len(failures))
     names = {}
     input_dir = job_dir / "uploads"
-    for path, name in entries:
+    for index, (path, name) in enumerate(entries, start=1):
         try:
             validate_image(path, settings.max_pixels)
         except Exception as error:
@@ -186,15 +225,18 @@ def process_job(job_dir: Path, entries: list[tuple[Path, str]], predictor, setti
             path.unlink()
         else:
             names[path.relative_to(input_dir).as_posix()] = name
+        if on_progress:
+            on_progress("validating", index, len(entries))
     result = sort_to_zip(
         input_dir, job_dir / "results", predictor,
         initial_failures=failures, source_names=names, allow_empty=True,
         on_progress=on_progress,
     )
-    # 완료 후에는 다운로드할 ZIP만 보관하여 중복 사진 사본을 지웁니다.
+    # 검토·선택 다운로드를 위해 분류된 원본 사본과 CSV를 만료 시점까지 보관합니다.
     final_zip = job_dir / "sorted_photos.zip"
     result.zip_path.replace(final_zip)
     shutil.rmtree(input_dir)
+    result.job_dir.replace(job_dir / "review")
     shutil.rmtree(job_dir / "results")
     return final_zip, result.counts, result.failed_count
 

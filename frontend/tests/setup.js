@@ -13,3 +13,7 @@ afterEach(() => {
   sessionStorage.clear();
   vi.restoreAllMocks();
 });
+
+// 대화상자의 열기·닫기 상태만 대역으로 검증합니다. 실제 초점 이동은 브라우저 검사에서 확인합니다.
+HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+HTMLDialogElement.prototype.close = function () { this.open = false; };

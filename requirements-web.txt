@@ -3,3 +3,5 @@ fastapi==0.162.0
 uvicorn==0.54.0
 python-multipart==0.0.33
 Pillow==12.3.0
+# --env-file .env로 모델 경로와 용량 설정을 읽습니다.
+python-dotenv==1.2.4

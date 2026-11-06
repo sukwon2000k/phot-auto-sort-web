@@ -70,10 +70,9 @@ def test_sorter_reports_progress_after_predict_and_copy(tmp_path):
             return "food"
     result = sort_to_zip(source, tmp_path / "out", Predictor(), on_progress=lambda *event: events.append(event))
     assert result.failed_count == 1
-    assert events == [
-        ("classifying", 0, 2), ("classifying", 1, 2),
-        ("classifying", 2, 2), ("zipping", 2, 2),
-    ]
+    assert events[:3] == [("classifying", 0, 2), ("classifying", 1, 2), ("classifying", 2, 2)]
+    zips = [e for e in events if e[0] == "zipping"]
+    assert zips[0][1] == 0 and zips[-1][1] == zips[-1][2] > 0
 
 
 def test_zip_preparation_is_not_completed_job(tmp_path, monkeypatch):
@@ -105,7 +104,7 @@ def test_zip_preparation_is_not_completed_job(tmp_path, monkeypatch):
             assert entered.wait(5)
             snapshot = client.get("/api/jobs/" + response.json()["id"]).json()
             assert snapshot["progress"]["phase"] == "zipping"
-            assert snapshot["progress"]["percent"] == 100
+            assert snapshot["progress"]["percent"] == 0
             assert snapshot["status"] == "processing"
             assert snapshot["download_url"] is None
         finally:

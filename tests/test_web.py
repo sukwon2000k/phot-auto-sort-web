@@ -95,9 +95,9 @@ def test_zip_bytes_names_failures_and_reuse(tmp_path):
             rows = list(csv.DictReader(io.StringIO(archive.read("classification_report.csv").decode("utf-8-sig"))))
             assert len(rows) == 7
             assert len([row for row in rows if row["status"] == "failed" and row["error"]]) == 3
-        # 처리 후에는 ZIP만 남고 업로드 원본이 삭제됐는지 확인합니다.
+        # 업로드 원본은 지우고 검토용 사본과 ZIP만 보관합니다.
         job = client.app.state.jobs[result["id"]]
-        assert sorted(path.name for path in job.directory.iterdir()) == ["sorted_photos.zip"]
+        assert sorted(path.name for path in job.directory.iterdir()) == ["review", "sorted_photos.zip"]
         second = client.post("/api/jobs", files={"files": ("again.png", red)})
         assert wait_result(client, second.json()["id"])["status"] == "completed"
         assert len(calls) == 1

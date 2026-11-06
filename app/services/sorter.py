@@ -194,15 +194,22 @@ def sort_to_zip(
     # ZIP 루트에 세 클래스 폴더와 처리 기록을 담습니다.
     # 실패한 사진은 포함하지 않으며, 기록의 failed 행으로 구분합니다.
     zip_path = job_dir / "sorted_photos.zip"
+    paths = [p for p in sorted(images_dir.rglob("*")) if p.is_file()] + [report_path]
+    zip_total = sum(p.stat().st_size for p in paths)
+    zipped = 0
     if on_progress:
-        on_progress("zipping", total_count, total_count)
-    with ZipFile(zip_path, mode="x", compression=ZIP_DEFLATED, compresslevel=1) as archive:
+        on_progress("zipping", 0, zip_total)
+    with ZipFile(zip_path, mode="x", compression=ZIP_DEFLATED, compresslevel=1, allowZip64=True) as archive:
         for class_name in CLASSES:
             archive.writestr(f"{class_name}/", b"")
-        for path in sorted(images_dir.rglob("*")):
-            if path.is_file():
-                archive.write(path, arcname=path.relative_to(images_dir).as_posix())
-        archive.write(report_path, arcname=report_path.name)
+        for path in paths:
+            arcname = path.name if path == report_path else path.relative_to(images_dir).as_posix()
+            with path.open("rb") as source, archive.open(arcname, "w", force_zip64=True) as output:
+                while chunk := source.read(1024**2):
+                    output.write(chunk)
+                    zipped += len(chunk)
+                    if on_progress:
+                        on_progress("zipping", zipped, zip_total)
 
     return SortResult(job_dir, images_dir, zip_path, report_path, counts, failed_count)
 

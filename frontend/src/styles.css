@@ -6,3 +6,31 @@
 @media(max-width:850px){.home-grid{grid-template-columns:minmax(0,1fr) 235px;gap:18px}.folder-aside{padding:24px 17px}.workspace{padding:21px}.action-row{flex-direction:column;align-items:stretch;gap:14px}.action-row .primary{width:100%}.folder-preview{gap:9px;padding:17px 12px}.folder-preview b{font-size:12px}.aside-bottom{gap:10px;font-size:9px}.previews{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:640px){.topbar{padding:17px 20px}.brand{font-size:17px;gap:9px}.brand-symbol{width:35px;height:35px;border-radius:11px}.brand-symbol svg{width:21px}.brand small{font-size:8px;letter-spacing:1.2px}.guide-link{font-size:11px;padding:7px 10px}.guide-link svg{width:14px}nav{gap:10px}.running-link{font-size:10px}.running-link>span{display:none}main{padding:25px 18px 35px}.home-heading{margin-bottom:22px}.home-heading h1{font-size:28px;letter-spacing:-1.1px}.home-heading .eyebrow{font-size:9px;margin-bottom:7px}.original-badge{font-size:9px;padding:4px 8px}.home-grid{grid-template-columns:1fr}.folder-aside{display:none}.workspace{padding:20px 17px;border-radius:16px}.section-head h2{font-size:16px}.dropzone{padding:21px 8px}.dropzone h3{font-size:15px}.previews{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.preview img,.archive-thumb{height:70px}.previous-result{font-size:10px;padding:10px 12px}.previous-result svg{display:none}footer{padding:20px;font-size:10px}footer small{display:none}.progress-screen{margin:22px auto;padding:20px 0}.progress-screen h1{font-size:27px;letter-spacing:-1px}.screen-description{font-size:12px}.gauge-panel{padding:22px 19px;margin-top:27px}.gauge-label strong{font-size:23px}.result-screen{margin:10px auto}.result-screen h1{font-size:29px}.result-counts{gap:9px;margin-top:27px}.folder-result{padding:18px 7px 15px;border-radius:11px}.folder-result dt{font-size:11px}.folder-result dd{font-size:28px}.folder-shape{width:39px;height:35px;margin-bottom:10px}.folder-result small{font-size:8px}.folder-result dd>span{font-size:10px}.failure-summary{font-size:10px}.choice-buttons{flex-direction:column;gap:10px}.choice-buttons .primary,.choice-buttons .secondary{width:100%;padding:14px 17px}.download-choice h2{font-size:19px}.guide-page{margin:15px auto}.guide-page>h1{font-size:29px}.guide-steps{margin:25px 0}.guide-steps li{gap:15px}.guide-steps h2{font-size:16px}.guide-steps p,.guide-section>p{font-size:12px}.guide-categories{grid-template-columns:1fr;gap:16px}.guide-categories p{display:flex;align-items:center;gap:10px}.category-dot{margin-bottom:0;white-space:nowrap;font-size:10px}.guide-section{margin:28px 0}.expanded{font-size:11px;padding:16px}.guide-page>.primary{width:100%}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* 결과 카드와 상세보기는 기존 색상을 유지하고 키보드로도 선택할 수 있게 합니다. */
+.review-card { font:inherit; text-align:left; cursor:pointer; border:1px solid var(--border, #dedbd4); position:relative; }
+.review-card:focus-visible { outline:3px solid #376653; outline-offset:4px; }
+.review-card small { display:block; font-size:12px; opacity:.65; }
+.review-card strong { font-size:24px; }
+.review-hint { display:block; font-size:13px; margin-top:12px; }
+.selection-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:18px 0; }
+.selection-actions button { padding:9px 14px; border:1px solid #d7d9d5; border-radius:10px; background:white; cursor:pointer; }
+.review-dialog { width:min(1040px,94vw); max-height:88vh; padding:24px; border:1px solid #ddd; border-radius:20px; overflow:auto; color:#26362d; }
+.review-dialog::backdrop { background:rgb(18 30 23 / 55%); }
+.review-dialog header { display:flex; justify-content:space-between; align-items:center; gap:20px; }
+.review-dialog h2 { margin:0; }
+.review-dialog p { font-size:14px; }
+.review-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+.review-photo { display:block; padding:8px; border:2px solid #dedfd9; border-radius:12px; min-width:0; cursor:pointer; }
+.review-photo.selected { border-color:#4b795e; background:#f0f6ef; }
+.review-photo img { width:100%; aspect-ratio:1; object-fit:contain; background:#f4f2ed; border-radius:7px; }
+.review-photo>span { display:flex; align-items:center; gap:6px; }
+.review-photo>span>span { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
+.review-photo input { width:18px; height:18px; flex-shrink:0; accent-color:#376653; }
+.review-photo small { color:#657067; font-size:12px; }
+.review-dialog footer { display:flex; justify-content:flex-end; margin-top:16px; padding:12px 0; }
+.gauge-panel progress { width:85%; height:16px; accent-color:#376653; margin-right:8px; }
+a[aria-disabled="true"] { pointer-events:none; opacity:.5; }
+.review-dialog header .secondary { flex-shrink:0; white-space:nowrap; padding:10px 16px; }
+.download-choice>.selection-actions { justify-content:center; }
+@media(max-width:650px) { .review-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .review-dialog { padding:15px; } }
